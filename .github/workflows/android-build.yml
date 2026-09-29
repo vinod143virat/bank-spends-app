@@ -52,14 +52,23 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      # android/build.gradle pins this NDK version and the New Architecture
-      # build needs it for the C++ codegen, so install it rather than hoping
-      # the runner image happens to ship that exact revision.
-      - name: Install pinned NDK
-        run: sdkmanager --install "ndk;27.1.12297006"
+      # The runner image already ships the Android SDK with ANDROID_HOME set, so
+      # its own sdkmanager is used directly. android-actions/setup-android is
+      # deliberately not used: it tries to install the obsolete `tools` package,
+      # which no longer exists in the SDK repository, and fails the job.
+      #
+      # The SDK components android/build.gradle pins are installed explicitly
+      # rather than assumed to be in the image - the NDK in particular, which
+      # the New Architecture needs for its C++ codegen.
+      - name: Install pinned SDK components
+        run: |
+          set -eux
+          sdkmanager=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" --install \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "ndk;27.1.12297006"
 
       - uses: gradle/actions/setup-gradle@v4
 
