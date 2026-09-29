@@ -84,6 +84,17 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+
+        // react-native-app-auth declares a redirect-receiver activity whose
+        // intent filter uses ${appAuthRedirectScheme}, and the manifest merger
+        // refuses to build without a value for it.
+        //
+        // Email ingestion is not wired up yet, so nothing redirects here. The
+        // scheme still has to be unique to this app, because Android routes a
+        // custom-scheme redirect to whichever installed app claims it - a
+        // generic value would let another app intercept the OAuth callback once
+        // Gmail sign-in does land. The application id is unique by definition.
+        manifestPlaceholders = [appAuthRedirectScheme: "com.bankspends"]
     }
     // A real release key is supplied through Gradle properties (-P flags, or
     // ~/.gradle/gradle.properties, or ORG_GRADLE_PROJECT_* env vars in CI).
