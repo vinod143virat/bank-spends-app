@@ -14,11 +14,17 @@ not built. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Area | State |
 |---|---|
-| SMS read, parse, dedupe, store | Working |
-| HDFC, ICICI, SBI, Axis, Kotak templates | Working |
-| Dashboard, per-bank, activity, insights | Working |
+| Release APK builds in CI | Verified green |
+| SMS read, parse, dedupe, store | Built, not yet run on a device |
+| HDFC, ICICI, SBI, Axis, Kotak templates | Working, unit tested |
+| Dashboard, per-bank, activity, insights | Built, not yet run on a device |
 | Gmail / Outlook ingestion | Not started |
 | Account Aggregator | Not started |
+
+The APK compiles, packages and signs. Nothing in it has been exercised against
+a real inbox yet, so treat the first install as the start of testing rather
+than the end of it - the parser templates in particular are written against
+alert formats that will need checking against your actual messages.
 
 ## Requirements
 
