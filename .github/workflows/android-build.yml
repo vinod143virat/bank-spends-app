@@ -1,0 +1,85 @@
+name: Build Android APK
+
+# Produces an installable debug APK as a downloadable workflow artifact.
+# Runs on demand, and on pushes that touch anything the APK is built from.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'index.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Cheap checks first: a type error or a failing parser test should not
+      # cost a 20-minute native build to discover.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # android/build.gradle pins this NDK version and the New Architecture
+      # build needs it for the C++ codegen, so install it rather than hoping
+      # the runner image happens to ship that exact revision.
+      - name: Install pinned NDK
+        run: sdkmanager --install "ndk;27.1.12297006"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Report APK size
+        run: ls -lh android/app/build/outputs/apk/debug/*.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bank-spends-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # The native build is where this fails if it fails, and the Gradle output
+      # alone is rarely enough to tell why.
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            android/app/build/reports/**
+            android/app/build/outputs/logs/**
+          if-no-files-found: ignore
+          retention-days: 7
