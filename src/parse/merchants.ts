@@ -29,9 +29,9 @@ export type Category = (typeof CATEGORIES)[number];
 
 /** Rail prefixes to peel off before anything else. */
 const RAIL_PREFIXES = [
-  /^UPI[\/-](?:P2M|P2A|P2P)?[\/-]?/i,
-  /^(?:POS|ECOM|ATM|NEFT|IMPS|RTGS|ACH|MMT|MPS|INF|BIL|CMS)[\/\-\s]+/i,
-  /^(?:DR|CR)[\/\-\s]+/i,
+  /^UPI[/-](?:P2M|P2A|P2P)?[/-]?/i,
+  /^(?:POS|ECOM|ATM|NEFT|IMPS|RTGS|ACH|MMT|MPS|INF|BIL|CMS)[/\-\s]+/i,
+  /^(?:DR|CR)[/\-\s]+/i,
 ];
 
 const KEYWORD_CATEGORIES: Array<[RegExp, Category]> = [
@@ -68,15 +68,15 @@ export function normalizeMerchant(raw: string | null | undefined): string | null
   }
 
   // Drop trailing reference numbers and rail ids left behind by the peel.
-  s = s.replace(/[\/\-\s]+\d{6,}$/g, '');
-  s = s.replace(/^\d{6,}[\/\-\s]+/g, '');
+  s = s.replace(/[/\-\s]+\d{6,}$/g, '');
+  s = s.replace(/^\d{6,}[/\-\s]+/g, '');
   // Drop masked card/account fragments: "4517*1234", "XXXX1234", "451712345678".
   // Any 6+ character token built only from digits and masking characters is a
   // rail identifier, never a merchant name.
   s = s.replace(/\b[\dxX*#]{6,}\b/g, ' ');
-  s = s.replace(/[_\/]+/g, ' ');
+  s = s.replace(/[_/]+/g, ' ');
   s = s.replace(/\s{2,}/g, ' ').trim();
-  s = s.replace(/[.,;:\-]+$/, '').trim();
+  s = s.replace(/[.,;:-]+$/, '').trim();
 
   if (!s || /^\d+$/.test(s)) return null;
 

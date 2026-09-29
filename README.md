@@ -1,97 +1,106 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Bank Spends
 
-# Getting Started
+An Android app that reads bank alerts already sitting on your phone and turns
+them into a per-bank view of what you spent, what came in, and what is worth
+worrying about.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+Everything happens on the device. There is no server, no account, and nothing
+is uploaded.
 
-## Step 1: Start Metro
+## Status
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Phase 1. SMS ingestion is complete end to end; email ingestion is scoped but
+not built. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+| Area | State |
+|---|---|
+| SMS read, parse, dedupe, store | Working |
+| HDFC, ICICI, SBI, Axis, Kotak templates | Working |
+| Dashboard, per-bank, activity, insights | Working |
+| Gmail / Outlook ingestion | Not started |
+| Account Aggregator | Not started |
 
-```sh
-# Using npm
-npm start
+## Requirements
 
-# OR using Yarn
-yarn start
+- Node >= 22.11
+- JDK 21
+- Android SDK with an API 34+ platform, and `ANDROID_HOME` set
+- A physical device or emulator running Android 8.0 (API 26) or newer
+
+React Native 0.87.1, New Architecture, no Expo.
+
+## Running it
+
+```bash
+npm install
+npm start                # Metro, in one terminal
+npm run android          # build and install, in another
 ```
 
-## Step 2: Build and run your app
+The first launch asks for SMS permission. Granting it triggers a 180-day
+backfill; expect a few seconds on a busy inbox. Without it the app still runs,
+just with nothing to show until email ingestion lands.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Checks
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+npm test         # 39 unit tests over the parser and the insight rules
+npm run typecheck
+npm run lint
 ```
 
-### iOS
+## How it works
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```
+SMS inbox ──► NativeSmsReader (Kotlin)     filters to bank senders natively
+                    │
+                    ▼
+              parse/engine.ts              noise filter ─► bank templates
+                    │                      ─► merchant normalise ─► categorise
+                    ▼
+            db/transactions.ts             dedupe against existing rows,
+                    │                      merge richer fields, persist
+                    ▼
+               SQLite (on device)
+                    │
+                    ▼
+          state/store.ts ──► screens       aggregates + insight rules
 ```
 
-Then, and every time you update your native dependencies, run:
+Four decisions worth knowing before you change anything:
 
-```sh
-bundle exec pod install
-```
+**Money is integer minor units everywhere.** `45000` is ₹450.00. Rupees as
+floats drift once you sum thousands of rows, and this is a money app.
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+**Sender filtering happens in Kotlin, not JS.** `NativeSmsReader.query` takes an
+allow-list of bank sender fragments and drops everything else before it crosses
+the bridge. Personal SMS never enters the JS heap. There is deliberately no API
+to read the inbox unfiltered — keep it that way.
 
-```sh
-# Using npm
-npm run ios
+**Only the derived transaction is stored, never the message body.** Parse,
+extract, discard. This is what keeps a device compromise from being a
+correspondence leak, and it is what will keep the eventual Gmail CASA
+assessment small.
 
-# OR using Yarn
-yarn ios
-```
+**A transaction has an identity independent of how we heard about it.** The same
+payment arrives over SMS *and* email; `transactionId()` plus the time-window
+lookup in `findDuplicate` collapse them into one row that keeps the best fields
+from each. Without this, every total is inflated.
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Adding a bank
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+1. Add an entry to `BANKS` in `src/domain/banks.ts` with the bank's SMS sender
+   fragments (the part after the `VM-`/`AD-` prefix).
+2. Add templates to `src/parse/templates/india.ts` using the shared `AMT`,
+   `L4`, `CUR` and `DATE` fragments.
+3. Add a test in `__tests__/parse.test.ts` using a real alert, with the digits
+   changed.
 
-## Step 3: Modify your app
+Unrecognised messages from a known bank are counted as `unparsed` and surfaced
+in Settings → Last sync, which is how you find the templates you still owe.
 
-Now that you have successfully run the app, let's make changes!
+## Docs
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — what is next and what it costs
+- [docs/PLAY_SMS_PERMISSION.md](docs/PLAY_SMS_PERMISSION.md) — **read before
+  attempting a Play release**
