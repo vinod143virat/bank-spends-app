@@ -41,6 +41,69 @@ The first launch asks for SMS permission. Granting it triggers a 180-day
 backfill; expect a few seconds on a busy inbox. Without it the app still runs,
 just with nothing to show until email ingestion lands.
 
+## Getting an APK
+
+You do not need an Android toolchain for this. Every push builds a release APK
+in CI and attaches it to the run.
+
+1. Open the repository's **Actions** tab → **Build Android APK**.
+2. Click the most recent run for your branch and wait for it to go green
+   (the native build takes roughly 15-25 minutes on a cold cache).
+3. Download **bank-spends-release-apk** from the Artifacts section at the
+   bottom of the run page.
+4. Unzip it and copy `app-release.apk` to your phone.
+
+To install, enable "Install unknown apps" for whatever app you transferred it
+with (Files, Drive, Chrome), then open the APK. Or over USB with adb:
+
+```bash
+adb install -r app-release.apk
+```
+
+Release rather than debug on purpose: a debug APK will not start without a
+Metro dev server on the same network, whereas a release APK has the JavaScript
+bundled and runs standalone.
+
+You can also build one locally, with the Android SDK installed:
+
+```bash
+cd android && ./gradlew assembleRelease
+# android/app/build/outputs/apk/release/app-release.apk
+```
+
+### Signing
+
+With no configuration, release builds are signed with the shared React Native
+**debug key**. That is deliberate — it means the build works with zero setup —
+and it is fine for sideloading onto your own phone.
+
+It is not fine for anything else. That key is public, Play rejects it, and
+anyone can re-sign the APK. Before giving the build to another person, generate
+a real key:
+
+```bash
+keytool -genkeypair -v -storetype PKCS12 \
+  -keystore bankspends.keystore -alias bankspends \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then either put the properties in `~/.gradle/gradle.properties` for local
+builds:
+
+```properties
+BANKSPENDS_STORE_FILE=/absolute/path/bankspends.keystore
+BANKSPENDS_STORE_PASSWORD=...
+BANKSPENDS_KEY_ALIAS=bankspends
+BANKSPENDS_KEY_PASSWORD=...
+```
+
+or add these repository secrets so CI signs with it:
+`BANKSPENDS_STORE_BASE64` (`base64 -w0 bankspends.keystore`),
+`BANKSPENDS_STORE_PASSWORD`, `BANKSPENDS_KEY_ALIAS`, `BANKSPENDS_KEY_PASSWORD`.
+
+**Keep the keystore and back it up.** Losing it means never being able to
+update an installed app; it has to be uninstalled and reinstalled instead.
+
 ## Checks
 
 ```bash
