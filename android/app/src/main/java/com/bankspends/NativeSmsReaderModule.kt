@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.provider.Telephony
 import androidx.core.content.ContextCompat
+import com.facebook.fbreact.specs.NativeSmsReaderSpec
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -19,8 +20,6 @@ import com.facebook.react.bridge.WritableArray
  */
 class NativeSmsReaderModule(reactContext: ReactApplicationContext) :
   NativeSmsReaderSpec(reactContext) {
-
-  override fun getName(): String = NAME
 
   override fun hasReadPermission(): Boolean =
     ContextCompat.checkSelfPermission(reactApplicationContext, Manifest.permission.READ_SMS) ==
@@ -93,7 +92,6 @@ class NativeSmsReaderModule(reactContext: ReactApplicationContext) :
   }
 
   companion object {
-    const val NAME = "NativeSmsReader"
     private const val E_PERMISSION = "E_SMS_PERMISSION"
     private const val E_QUERY = "E_SMS_QUERY"
     private const val MAX_ROWS = 2000

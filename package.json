@@ -43,10 +43,7 @@
   "codegenConfig": {
     "name": "BankSpendsSpec",
     "type": "modules",
-    "jsSrcsDir": "src/native",
-    "android": {
-      "javaPackageName": "com.bankspends"
-    }
+    "jsSrcsDir": "src/native"
   },
   "engines": {
     "node": ">= 22.11.0"

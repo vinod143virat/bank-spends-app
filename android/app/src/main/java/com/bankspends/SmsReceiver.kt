@@ -6,7 +6,6 @@ import android.content.Intent
 import android.provider.Telephony
 import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.Arguments
-import com.facebook.react.modules.core.DeviceEventManagerModule
 
 /**
  * Nudges the app to re-sync when a bank alert lands while it is running.
@@ -27,17 +26,19 @@ class SmsReceiver : BroadcastReceiver() {
       ?: return
 
     val host = context.applicationContext as? ReactApplication ?: return
-    val reactContext = host.reactHost.currentReactContext ?: return
-    if (!reactContext.hasActiveReactInstance()) return
+    // `reactHost` is null until the host is built, and `currentReactContext` is
+    // null whenever JS is not running - a broadcast can arrive in both states.
+    val reactContext = host.reactHost?.currentReactContext ?: return
 
     val payload = Arguments.createMap().apply {
       putString("sender", sender)
       putDouble("receivedAt", System.currentTimeMillis().toDouble())
     }
 
-    reactContext
-      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-      .emit(EVENT_NAME, payload)
+    // emitDeviceEvent resolves the emitter itself and no-ops when JS is not
+    // listening. Guarding on hasActiveReactInstance() instead would drop every
+    // event under bridgeless mode, which is the default on the New Architecture.
+    reactContext.emitDeviceEvent(EVENT_NAME, payload)
   }
 
   companion object {

@@ -55,8 +55,14 @@ export async function syncSms(): Promise<SmsSyncResult> {
     ? Math.max(0, Number(stored) - CURSOR_OVERLAP_MS)
     : Date.now() - BACKFILL_DAYS * 86_400_000;
 
-  // Pages forward until the provider runs dry, so a first-run backfill of
-  // several thousand alerts completes in one sync rather than one page per open.
+  // Pages forward until the provider runs dry.
+  //
+  // The loop stops on an empty page, never on a short one: the native side caps
+  // how many raw rows it scans per call, so a page can come back short simply
+  // because that window held mostly non-bank messages, with plenty of alerts
+  // still beyond it. Treating short as done would silently truncate a first-run
+  // backfill. Progress is guaranteed because the cursor advances to the last
+  // returned message and the provider query is strictly greater-than.
   for (;;) {
     const rows = await NativeSmsReader.query(cursor, PAGE_SIZE, SENDER_FRAGMENTS);
     if (rows.length === 0) break;
@@ -93,8 +99,6 @@ export async function syncSms(): Promise<SmsSyncResult> {
 
     cursor = rows[rows.length - 1].date;
     await setState(CURSOR_KEY, String(cursor));
-
-    if (rows.length < PAGE_SIZE) break;
   }
 
   return result;
