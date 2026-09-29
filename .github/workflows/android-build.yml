@@ -108,7 +108,42 @@ jobs:
           ORG_GRADLE_PROJECT_BANKSPENDS_STORE_PASSWORD: ${{ secrets.BANKSPENDS_STORE_PASSWORD }}
           ORG_GRADLE_PROJECT_BANKSPENDS_KEY_ALIAS: ${{ secrets.BANKSPENDS_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_BANKSPENDS_KEY_PASSWORD: ${{ secrets.BANKSPENDS_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          # No --stacktrace: it buries the actual compiler error under hundreds
+          # of Gradle internal frames. The summary step below extracts it.
+          ./gradlew assembleRelease --no-daemon --console=plain 2>&1 \
+            | tee "$RUNNER_TEMP/gradle-build.log"
+
+      # Gradle failures are mostly noise. Pull out the parts that say what
+      # actually broke, so the cause is visible without trawling the raw log.
+      - name: Summarise Gradle failure
+        if: failure()
+        working-directory: android
+        run: |
+          log="$RUNNER_TEMP/gradle-build.log"
+          [ -f "$log" ] || { echo "no gradle log captured"; exit 0; }
+
+          echo "::group::Kotlin / Java / C++ compiler errors"
+          grep -nE "^e: |^w: .*error|error:|ERROR:|FAILED$" "$log" | head -40 || echo "none matched"
+          echo "::endgroup::"
+
+          echo "::group::What went wrong"
+          sed -n '/^FAILURE: Build/,$p' "$log" | grep -vE "^\s+at |^\s+\.\.\. " | head -60
+          echo "::endgroup::"
+
+          echo "::group::Failing task"
+          grep -nE "^> Task .*(FAILED|error)" "$log" | tail -20 || true
+          echo "::endgroup::"
+
+      - name: Upload Gradle log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: ${{ runner.temp }}/gradle-build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Report APK size and signer
         run: |
