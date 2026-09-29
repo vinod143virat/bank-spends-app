@@ -95,7 +95,13 @@ android {
     // the key is public and shared by every React Native project, so Play will
     // reject it and anyone can re-sign the build. Generate a real key before
     // distributing to anyone.
-    def hasReleaseKey = project.hasProperty('BANKSPENDS_STORE_FILE')
+    //
+    // An empty value counts as absent. CI always defines the variable and
+    // leaves it blank when no keystore secret is configured, and
+    // project.hasProperty() reports true for a blank string - which then tries
+    // to open a file named '' and fails configuration outright.
+    def releaseStoreFile = (project.findProperty('BANKSPENDS_STORE_FILE') ?: '').toString().trim()
+    def hasReleaseKey = !releaseStoreFile.isEmpty()
 
     signingConfigs {
         debug {
@@ -106,10 +112,10 @@ android {
         }
         if (hasReleaseKey) {
             release {
-                storeFile file(BANKSPENDS_STORE_FILE)
-                storePassword BANKSPENDS_STORE_PASSWORD
-                keyAlias BANKSPENDS_KEY_ALIAS
-                keyPassword BANKSPENDS_KEY_PASSWORD
+                storeFile file(releaseStoreFile)
+                storePassword project.findProperty('BANKSPENDS_STORE_PASSWORD')
+                keyAlias project.findProperty('BANKSPENDS_KEY_ALIAS')
+                keyPassword project.findProperty('BANKSPENDS_KEY_PASSWORD')
             }
         }
     }
@@ -118,7 +124,9 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig hasReleaseKey ? signingConfigs.release : signingConfigs.debug
+            // Parenthesised deliberately: `signingConfig a ? b : c` parses as
+            // `signingConfig(a) ? b : c` in Groovy's command-expression syntax.
+            signingConfig(hasReleaseKey ? signingConfigs.release : signingConfigs.debug)
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
