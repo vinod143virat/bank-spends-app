@@ -60,15 +60,26 @@ jobs:
       # The SDK components android/build.gradle pins are installed explicitly
       # rather than assumed to be in the image - the NDK in particular, which
       # the New Architecture needs for its C++ codegen.
-      - name: Install pinned SDK components
+      - name: Install NDK and report available SDK packages
         run: |
-          set -eux
+          set -eu
           sdkmanager=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
           yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$sdkmanager" --install \
-            "platforms;android-37" \
-            "build-tools;37.0.0" \
-            "ndk;27.1.12297006"
+
+          # The NDK is installed explicitly: it is large, pinned by
+          # android/build.gradle, and the New Architecture needs it for C++
+          # codegen. Platforms and build-tools are left to the Android Gradle
+          # Plugin, which downloads whatever compileSdk resolves to now that
+          # the licences are accepted - pinning them here only adds a second
+          # place to get the version wrong.
+          "$sdkmanager" --install "ndk;27.1.12297006"
+
+          echo "::group::Available platforms"
+          "$sdkmanager" --list 2>/dev/null | grep -E "^\s+platforms;android-[0-9]+\s" | sort -u -V || true
+          echo "::endgroup::"
+          echo "::group::Available build-tools"
+          "$sdkmanager" --list 2>/dev/null | grep -E "^\s+build-tools;[0-9.]+\s" | sort -u -V | tail -15 || true
+          echo "::endgroup::"
 
       - uses: gradle/actions/setup-gradle@v4
 
