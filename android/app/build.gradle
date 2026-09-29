@@ -85,6 +85,18 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    // A real release key is supplied through Gradle properties (-P flags, or
+    // ~/.gradle/gradle.properties, or ORG_GRADLE_PROJECT_* env vars in CI).
+    // When none is present the release build falls back to the debug key, which
+    // keeps `assembleRelease` producing an APK you can sideload for testing
+    // without any key setup.
+    //
+    // A debug-signed APK is fine on your own phone and NOT fine anywhere else:
+    // the key is public and shared by every React Native project, so Play will
+    // reject it and anyone can re-sign the build. Generate a real key before
+    // distributing to anyone.
+    def hasReleaseKey = project.hasProperty('BANKSPENDS_STORE_FILE')
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -92,15 +104,21 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseKey) {
+            release {
+                storeFile file(BANKSPENDS_STORE_FILE)
+                storePassword BANKSPENDS_STORE_PASSWORD
+                keyAlias BANKSPENDS_KEY_ALIAS
+                keyPassword BANKSPENDS_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig hasReleaseKey ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }

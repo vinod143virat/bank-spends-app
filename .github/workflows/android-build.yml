@@ -1,6 +1,13 @@
 name: Build Android APK
 
-# Produces an installable debug APK as a downloadable workflow artifact.
+# Produces an installable RELEASE APK as a downloadable workflow artifact.
+# Release rather than debug because a debug APK needs a Metro dev server to
+# start; a release APK has the JS bundled and runs standalone off a sideload.
+#
+# It is signed with the release key when BANKSPENDS_* secrets are configured,
+# and with the debug key otherwise so the build works with no key setup. See
+# the signing block in android/app/build.gradle.
+#
 # Runs on demand, and on pushes that touch anything the APK is built from.
 on:
   workflow_dispatch:
@@ -56,20 +63,50 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      # Unconditional, with the check inside the script: a step's own `env`
+      # block is not reliably visible to that step's `if` expression.
+      - name: Decode release keystore
+        id: keystore
+        env:
+          BANKSPENDS_STORE_BASE64: ${{ secrets.BANKSPENDS_STORE_BASE64 }}
+        run: |
+          if [ -n "$BANKSPENDS_STORE_BASE64" ]; then
+            echo "$BANKSPENDS_STORE_BASE64" | base64 -d > android/app/release.keystore
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Signing with the configured release key."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No release keystore secret configured - signing with the debug key. Installable on your own phone, but not distributable."
+          fi
 
-      - name: Report APK size
-        run: ls -lh android/app/build/outputs/apk/debug/*.apk
+      - name: Build release APK
+        working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_BANKSPENDS_STORE_FILE: ${{ steps.keystore.outputs.signed == 'true' && 'release.keystore' || '' }}
+          ORG_GRADLE_PROJECT_BANKSPENDS_STORE_PASSWORD: ${{ secrets.BANKSPENDS_STORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_BANKSPENDS_KEY_ALIAS: ${{ secrets.BANKSPENDS_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_BANKSPENDS_KEY_PASSWORD: ${{ secrets.BANKSPENDS_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Report APK size and signer
+        run: |
+          set -x
+          ls -lh android/app/build/outputs/apk/release/*.apk
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs \
+            android/app/build/outputs/apk/release/app-release.apk || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: bank-spends-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: bank-spends-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f android/app/release.keystore
 
       # The native build is where this fails if it fails, and the Gradle output
       # alone is rarely enough to tell why.
