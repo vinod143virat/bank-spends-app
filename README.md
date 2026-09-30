@@ -70,6 +70,39 @@ Release rather than debug on purpose: a debug APK will not start without a
 Metro dev server on the same network, whereas a release APK has the JavaScript
 bundled and runs standalone.
 
+### "App blocked to protect your device"
+
+Play Protect blocks this build on install, with a warning about sensitive data
+and financial fraud. That is expected and the APK is fine.
+
+The warning is triggered by the combination of a sideloaded app, an unknown
+signing key, and a `READ_SMS` declaration - which is also the exact profile of
+an SMS-stealing fraud app. Play Protect cannot tell the two apart, and a real
+signing key does not silence it, because the signal is "unknown developer",
+not "bad signature".
+
+Install anyway, easiest first:
+
+**Over adb** - the install path Play Protect does not gate:
+
+```bash
+adb install -r app-release.apk
+```
+
+If that returns `INSTALL_FAILED_VERIFICATION_FAILURE`, turn off
+Settings -> Developer options -> **Verify apps over USB**, then retry.
+
+**By pausing the scanner** - Play Store -> your profile picture ->
+**Play Protect** -> gear icon -> turn off **Scan apps with Play Protect**.
+Install the APK, then turn it back on. Leaving it off is a bad trade for one
+sideload.
+
+**From the dialog** - some builds offer **More details** -> **Install anyway**
+on the block screen itself. Many do not, in which case use one of the above.
+
+Play Protect may keep flagging the app after install, and may re-prompt on
+update. That does not affect how the app runs.
+
 You can also build one locally, with the Android SDK installed:
 
 ```bash
